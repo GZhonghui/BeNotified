@@ -20,14 +20,17 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/line/line-bot-sdk-go/v7/linebot"
 )
 
 var (
-	bot     *linebot.Client
-	once    sync.Once
-	initErr error
+	bot             *linebot.Client
+	once            sync.Once
+	initErr         error
+	lastBroadcastMu sync.Mutex
+	lastBroadcastTS time.Time
 )
 
 // Init initializes the global LINE client exactly once.
@@ -63,6 +66,7 @@ func IsInitialized() bool {
 }
 
 // BroadcastText sends a single text message to all followers using Broadcast API.
+// This function is rate-limited to once per hour to prevent spam.
 func BroadcastText(text string) error {
 	if bot == nil {
 		return errors.New("linebc: client not initialized; call Init or InitFromEnv first")
@@ -70,6 +74,19 @@ func BroadcastText(text string) error {
 	if text == "" {
 		return errors.New("linebc: text cannot be empty")
 	}
+
+	// Check rate limit: only allow once per hour
+	lastBroadcastMu.Lock()
+	now := time.Now()
+	timeSinceLastBroadcast := now.Sub(lastBroadcastTS)
+	if timeSinceLastBroadcast < time.Hour && !lastBroadcastTS.IsZero() {
+		lastBroadcastMu.Unlock()
+		remainingTime := time.Hour - timeSinceLastBroadcast
+		return fmt.Errorf("linebc: rate limit exceeded, please wait %v before next broadcast", remainingTime.Round(time.Second))
+	}
+	lastBroadcastTS = now
+	lastBroadcastMu.Unlock()
+
 	_, err := bot.BroadcastMessage(linebot.NewTextMessage(text)).Do()
 	return err
 }
