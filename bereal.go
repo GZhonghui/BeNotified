@@ -15,7 +15,7 @@ import (
 // RegionMoment represents a BeReal moment for a specific region
 type RegionMoment struct {
 	ID  string `json:"id"`
-	TS  string `json:"ts"`  // Unix timestamp as string
+	TS  int64  `json:"ts"`  // Unix timestamp as number
 	UTC string `json:"utc"` // UTC time string
 }
 
@@ -107,6 +107,7 @@ func berealMain() {
 		time.Sleep(5 * time.Second)
 		currentID, err := fetchAsiaEastLatestID(apiKey)
 		if err != nil {
+			log.Printf("Error fetching latest ID: %v", err)
 			continue
 		}
 
